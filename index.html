@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Station Keeping</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="eyebrow">Station Keeping · Sector 7 · Kubernetes puzzle prototype</div>
+    <h1>No Room on Deck</h1>
+    <p class="brief">Command wants five interceptors on station. You scaled the <code>interceptor</code> deployment to 5 replicas a moment ago, and only three launched. No new carriers are available, and fleet systems in <code>kube-system</code> belong to another crew. Get all five interceptors running.</p>
+  </header>
+
+  <section class="term" aria-label="Terminal">
+    <div class="out" id="out" role="log" aria-live="polite"></div>
+    <div class="inrow">
+      <label class="p" for="cmd">operator@sector-7 $</label>
+      <input id="cmd" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send">
+      <button class="tabkey" id="tabkey" type="button" aria-label="Complete command">Tab</button>
+    </div>
+  </section>
+
+  <div class="bar">
+    <span class="chip" id="status">Interceptors running: <b>3/5</b></span>
+    <span class="foot" id="count">0 commands</span>
+    <span class="spacer"></span>
+    <button id="hintbtn" type="button">Hint (0/3)</button>
+    <button id="resetbtn" type="button">Restart puzzle</button>
+  </div>
+</div>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
