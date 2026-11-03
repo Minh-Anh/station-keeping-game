@@ -29,9 +29,9 @@ No build step and no dependencies.
 | `src/main.js` | Entry point: opening scene, command loop, keyboard handling |
 | `src/cluster.js` | **The simulation.** Puzzle setup, scheduler, ReplicaSet reconcile, Deployment rollout |
 | `src/args.js` | Tokenizing, flag parsing, resource-type aliases, shared NotFound errors |
-| `src/format.js` | Quantity parse/format (`1000m` → `1`), kubectl's age format, column tables |
+| `src/format.js` | Quantity parse/format, kubectl's age format, column tables |
 | `src/terminal.js` | Writing lines to the terminal (kubectl output vs. game notes) |
-| `src/complete.js` | Tab completion, scoped by namespace |
+| `src/complete.js` | Tab completion, scoped by namespace, with display-only syntax examples |
 | `src/game.js` | Hints, status chip, win debrief |
 | `src/commands/kubectl.js` | Verb dispatcher and `kubectl` help |
 | `src/commands/get.js` | `get` pods, nodes, deployments, replicasets, daemonsets, events, services, namespaces |
@@ -49,6 +49,7 @@ No build step and no dependencies.
 
 ## Known simplifications
 
+- CPU always prints in millicores (`1000m`). Real kubectl prints whole cores as `1`.
 - Rollouts replace all pods at once instead of in surge/unavailable batches.
 - Pods go straight to Running once bound (no image pull, probes, or restarts).
 - Node `Conditions` omits the heartbeat and transition-time columns.

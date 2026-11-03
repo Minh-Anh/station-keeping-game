@@ -14,11 +14,13 @@
   <header>
     <div class="eyebrow">Station Keeping · Sector 7 · Kubernetes puzzle prototype</div>
     <h1>No Room on Deck</h1>
-    <p class="brief">Command wants five interceptors on station. You scaled the <code>interceptor</code> deployment to 5 replicas a moment ago, and only three launched. No new carriers are available, and fleet systems in <code>kube-system</code> belong to another crew. Get all five interceptors running.</p>
+    <p class="brief">Command wants five interceptors on station. You scaled the <code>interceptor</code> deployment to 5 replicas a moment ago, but the new pods haven't launched. No new carriers are available. Get all five interceptors running.</p>
   </header>
 
   <section class="term" aria-label="Terminal">
     <div class="out" id="out" role="log" aria-live="polite"></div>
+    <div class="toolbar"><span>Tab for completions</span><span aria-hidden="true">|</span><span>↑ to recall history</span></div>
+    <div class="completions" id="completions" role="status" aria-label="Completions"></div>
     <div class="inrow">
       <label class="p" for="cmd">operator@sector-7 $</label>
       <input id="cmd" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send">

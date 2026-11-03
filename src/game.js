@@ -5,9 +5,9 @@ import { fmtCpu, fmtMem } from './format.js';
 import { note, outEl } from './terminal.js';
 
 const HINTS = [
-  "The deck officer doesn't look at what drones use when he assigns hangar space. What does he look at?",
-  'Compare kubectl top nodes with kubectl describe node <name>. Look for the "Allocated resources" section.',
-  'What did the interceptor blueprint promise each drone would need? Check kubectl describe deployment interceptor, then kubectl set resources --help.'
+  "Try using one of the kubectl commands to get more information on the pods that aren't launching.",
+  'kubectl describe gives you information about the resources requested by pods and allocated within nodes, while kubectl top will give you information about the resources actually used by pods and within nodes.',
+  'What resources are required for each interceptor pod? Check kubectl describe deployment interceptor, then kubectl set resources --help.'
 ];
 
 export function giveHint() {
@@ -43,7 +43,7 @@ export function win() {
   box.append(h);
   const para = html => { const p = document.createElement('p'); p.innerHTML = html; box.append(p); };
 
-  para('The scheduler places pods by their <b>requests</b>, not by what they use. Each interceptor requested 1 CPU and used about 100m. <code>kubectl top nodes</code> showed the carriers around 10% busy, while <code>kubectl describe node</code> showed 84% of their CPU reserved.');
+  para('The scheduler places pods by their <b>requests</b>, not by what they use. Each interceptor requested 1000m of CPU and used about 100m. <code>kubectl top nodes</code> showed the carriers around 10% busy, while <code>kubectl describe node</code> showed 84% of their CPU reserved.');
   para('Each carrier had 1900m allocatable: 600m reserved by relay-agent and 1000m by one interceptor, leaving 300m. Across the fleet 900m sat unreserved, but no single carrier could take a 1000m drone.');
 
   const req = fmtCpu(t.cpuReq);

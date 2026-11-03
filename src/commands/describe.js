@@ -119,7 +119,7 @@ function describeNode(n) {
   L.push('  InternalIP:  ' + n.ip);
   L.push('  Hostname:    ' + n.name);
   L.push('Capacity:');
-  L.push(table([['cpu:', '2'], ['ephemeral-storage:', '101430960Ki'], ['memory:', '8131288Ki'], ['pods:', '110']], 2, '  '));
+  L.push(table([['cpu:', fmtCpu(2000)], ['ephemeral-storage:', '101430960Ki'], ['memory:', '8131288Ki'], ['pods:', '110']], 2, '  '));
   L.push('Allocatable:');
   L.push(table([['cpu:', fmtCpu(n.cpu)], ['ephemeral-storage:', '93478772582'], ['memory:', n.mem * 1024 + 'Ki'], ['pods:', '110']], 2, '  '));
   L.push('PodCIDR:'.padEnd(30) + n.cidr + '.0/24');

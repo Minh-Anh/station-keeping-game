@@ -1,8 +1,9 @@
 // Kubernetes quantity parsing/formatting, kubectl's duration format, and a
 // tabwriter-style column formatter. No game state lives here.
 
-// CPU is stored in millicores. kubectl prints whole cores without the "m" (1000m -> "1").
-export const fmtCpu = m => (m == null ? '0' : m % 1000 === 0 ? String(m / 1000) : m + 'm');
+// CPU is stored and always printed in millicores so every value shares a unit.
+// Real kubectl prints whole cores without the "m" (1000m -> "1"); see README.
+export const fmtCpu = m => (!m ? '0' : m + 'm');
 
 // Memory is stored in MiB (possibly fractional for decimal suffixes like "128M").
 export function fmtMem(mi) {

@@ -4,9 +4,9 @@ import { S, newGame } from './cluster.js';
 import { tokenize, parse } from './args.js';
 import { kubectl } from './commands/kubectl.js';
 import { kGet } from './commands/get.js';
-import { complete } from './complete.js';
+import { complete, pick } from './complete.js';
 import { giveHint, status, win, isWon } from './game.js';
-import { outEl, out, err, note, echo, clear } from './terminal.js';
+import { outEl, out, err, note, echo, clear, showCompletions } from './terminal.js';
 
 const inp = document.getElementById('cmd');
 const history = [];
@@ -15,7 +15,7 @@ let hIdx = 0;
 function start() {
   newGame();
   clear();
-  note('Real kubectl syntax, simulated cluster. Implemented: get, describe, top, set resources, delete. Type kubectl to list them. Tab completes; the up arrow recalls history. Game commands: hint, brief, clear, reset.');
+  note('Available kubectl commands: get, describe, top, set resources, delete');
   // Opening scene: the player has just scaled up and is looking at the result.
   echo('kubectl scale deployment interceptor --replicas=5');
   out('deployment.apps/interceptor scaled');
@@ -24,6 +24,7 @@ function start() {
   history.length = 0;
   hIdx = 0;
   inp.value = '';
+  showCompletions();
   status();
 }
 
@@ -51,6 +52,7 @@ inp.addEventListener('keydown', e => {
     if (v.trim()) history.push(v);
     hIdx = history.length;
     inp.value = '';
+    showCompletions();
     run(v);
   } else if (e.key === 'Tab') {
     e.preventDefault();
@@ -67,6 +69,12 @@ inp.addEventListener('keydown', e => {
     e.preventDefault();
     clear();
   }
+});
+const tray = document.getElementById('completions');
+tray.addEventListener('mousedown', e => { if (e.target.closest('.item')) e.preventDefault(); }); // keep focus in the input
+tray.addEventListener('click', e => {
+  const item = e.target.closest('.item');
+  if (item) { pick(inp, item.textContent); inp.focus(); }
 });
 document.getElementById('tabkey').addEventListener('click', () => { complete(inp); inp.focus(); });
 document.getElementById('hintbtn').addEventListener('click', () => { giveHint(); inp.focus(); });
