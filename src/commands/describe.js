@@ -1,10 +1,12 @@
 // kubectl describe (pods, nodes, the interceptor deployment).
 // Layouts follow real kubectl output; a few long sections are abridged.
 
-import { S, now, DAY, IMAGE, IMAGE_ID, dateAt, labels, matchSel, usedOn, intPods, runningCount } from '../cluster.js';
+import { S, now, DAY, IMAGE, IMAGE_ID, dateAt, labels, matchSel, usedOn, intPods, runningCount, podReady } from '../cluster.js';
 import { fmtCpu, fmtMem, age, table } from '../format.js';
 import { out, err, notSim } from '../terminal.js';
-import { badFlags, target, noRes, notFound } from '../args.js';
+import { badFlags, target, noRes, notFound, unknownType } from '../args.js';
+
+const DESCRIBE_HINTS = { events: 'Try kubectl get events.' };
 
 function qos(p) {
   const any = p.cpuReq != null || p.memReq != null || p.cpuLim != null || p.memLim != null;
@@ -66,10 +68,23 @@ function describePod(p) {
   c('Port', p.port || '<none>');
   c('Host Port', p.port ? '0/TCP' : '<none>');
   if (p.node) {
-    c('State', 'Running');
-    L.push('      ' + 'Started:'.padEnd(14) + dateAt(p.started));
-    c('Ready', 'True');
-    c('Restart Count', '0');
+    const sub = (k, v) => L.push('      ' + (k + ':').padEnd(14) + v);
+    if (podReady(p)) {
+      c('State', 'Running');
+      sub('Started', dateAt(p.run ? p.run.boot : p.started));
+    } else {
+      c('State', 'Waiting');
+      sub('Reason', 'CrashLoopBackOff');
+    }
+    if (p.prev) {
+      c('Last State', 'Terminated');
+      sub('Reason', 'OOMKilled');
+      sub('Exit Code', '137');
+      sub('Started', dateAt(p.prev.boot));
+      sub('Finished', dateAt(p.prev.kill));
+    }
+    c('Ready', podReady(p) ? 'True' : 'False');
+    c('Restart Count', String(p.restarts || 0));
   }
   L.push(...resBlock(p, '    '));
   c('Environment', '<none>');
@@ -78,7 +93,7 @@ function describePod(p) {
 
   L.push('Conditions:');
   const conds = p.node
-    ? ['PodReadyToStartContainers', 'Initialized', 'Ready', 'ContainersReady', 'PodScheduled'].map(t => [t, 'True'])
+    ? ['PodReadyToStartContainers', 'Initialized', 'Ready', 'ContainersReady', 'PodScheduled'].map(t => [t, !podReady(p) && (t === 'Ready' || t === 'ContainersReady') ? 'False' : 'True'])
     : [['PodScheduled', 'False']];
   L.push(table([['Type', 'Status'], ...conds], 3, '  '));
   L.push('Volumes:');
@@ -156,6 +171,68 @@ function describeNode(n) {
   return L.join('\n');
 }
 
+// The Pod Template block shared by deployments, replicasets and daemonsets.
+function podTemplate(L, { labels: labelList, cname, image, port, res }) {
+  L.push('Pod Template:');
+  L.push('  Labels:  ' + labelList[0]);
+  labelList.slice(1).forEach(x => L.push('           ' + x));
+  L.push('  Containers:');
+  L.push(`   ${cname}:`);
+  const c = (k, v) => L.push('    ' + (k + ':').padEnd(12) + v);
+  c('Image', image);
+  c('Port', port || '<none>');
+  c('Host Port', port ? '0/TCP' : '<none>');
+  L.push(...resBlock(res, '    '));
+  L.push('    Environment:  <none>');
+  L.push('    Mounts:       <none>');
+  L.push('  Volumes:        <none>');
+  L.push('  Node-Selectors: <none>');
+  L.push('  Tolerations:    <none>');
+}
+
+function describeReplicaSet(x) {
+  const L = [];
+  const f = (k, v) => L.push((k + ':').padEnd(16) + v);
+  const current = x.hash === S.dep.hash;
+  const pods = S.pods.filter(p => p.hash === x.hash);
+  const running = pods.filter(p => p.node && podReady(p)).length;
+  const desired = current ? S.dep.replicas : 0;
+  f('Name', x.name);
+  f('Namespace', 'default');
+  f('Selector', `app=interceptor,pod-template-hash=${x.hash}`);
+  f('Labels', 'app=interceptor');
+  L.push(' '.repeat(16) + `pod-template-hash=${x.hash}`);
+  f('Annotations', `deployment.kubernetes.io/desired-replicas: ${S.dep.replicas}`);
+  L.push(' '.repeat(16) + 'deployment.kubernetes.io/revision: ' + (current ? S.dep.revision : S.rs.indexOf(S.rs.find(y => y.hash === x.hash)) + 1));
+  f('Controlled By', 'Deployment/interceptor');
+  f('Replicas', `${pods.length} current / ${desired} desired`);
+  f('Pods Status', `${running} Running / ${pods.length - running} Waiting / 0 Succeeded / 0 Failed`);
+  podTemplate(L, { labels: ['app=interceptor', `pod-template-hash=${x.hash}`], cname: 'interceptor', image: IMAGE, port: '8080/TCP', res: x.tpl });
+  L.push(...eventsBlock('replicaset/' + x.name));
+  return L.join('\n');
+}
+
+// Read from the pods themselves, so the numbers always match describe node.
+function describeDaemonSet(x) {
+  const L = [];
+  const f = (k, v) => L.push((k + ':').padEnd(16) + v);
+  const sample = S.pods.find(p => p.app === x.name);
+  f('Name', x.name);
+  f('Selector', `k8s-app=${x.name}`);
+  f('Node-Selector', x.name === 'kube-proxy' ? 'kubernetes.io/os=linux' : '<none>');
+  f('Labels', `k8s-app=${x.name}`);
+  f('Annotations', 'deprecated.daemonset.template.generation: 1');
+  L.push(`Desired Number of Nodes Scheduled: ${S.nodes.length}`);
+  L.push(`Current Number of Nodes Scheduled: ${S.nodes.length}`);
+  L.push(`Number of Nodes Scheduled with Up-to-date Pods: ${S.nodes.length}`);
+  L.push(`Number of Nodes Scheduled with Available Pods: ${S.nodes.length}`);
+  L.push('Number of Nodes Misscheduled: 0');
+  f('Pods Status', `${S.nodes.length} Running / 0 Waiting / 0 Succeeded / 0 Failed`);
+  podTemplate(L, { labels: [`k8s-app=${x.name}`], cname: x.name, image: sample.image, port: null, res: sample });
+  L.push('Events:' + ' '.repeat(14) + '<none>');
+  return L.join('\n');
+}
+
 function describeDeploy() {
   const L = [];
   const f = (k, v) => L.push((k + ':').padEnd(24) + v);
@@ -174,20 +251,7 @@ function describeDeploy() {
   f('StrategyType', 'RollingUpdate');
   f('MinReadySeconds', '0');
   f('RollingUpdateStrategy', '25% max unavailable, 25% max surge');
-  L.push('Pod Template:');
-  L.push('  Labels:  app=interceptor');
-  L.push('  Containers:');
-  L.push('   interceptor:');
-  const c = (k, v) => L.push('    ' + (k + ':').padEnd(12) + v);
-  c('Image', IMAGE);
-  c('Port', '8080/TCP');
-  c('Host Port', '0/TCP');
-  L.push(...resBlock(t, '    '));
-  L.push('    Environment:  <none>');
-  L.push('    Mounts:       <none>');
-  L.push('  Volumes:        <none>');
-  L.push('  Node-Selectors: <none>');
-  L.push('  Tolerations:    <none>');
+  podTemplate(L, { labels: ['app=interceptor'], cname: 'interceptor', image: IMAGE, port: '8080/TCP', res: t });
 
   // Available needs replicas - maxUnavailable pods up (25% of 5, rounded down, is 1).
   const minAvail = S.dep.replicas - Math.floor(S.dep.replicas * 0.25);
@@ -209,7 +273,7 @@ export function kDescribe(o) {
   if (badFlags(o)) return;
   const tg = target(o);
   if (!tg) return err('You must specify the type of resource to describe. Use "kubectl api-resources" for a complete list of supported resources.\n\nerror: Required resource not specified.');
-  if (!tg.type) return err(`error: the server doesn't have a resource type "${tg.raw}"`);
+  if (!tg.type) return unknownType(tg.raw, o);
 
   // Like real kubectl describe: exact name first, then treat the name as a prefix.
   const resolve = (list, kind) => {
@@ -240,5 +304,15 @@ export function kDescribe(o) {
     if (!list.length) { if (!tg.names.length) noRes(o); return; }
     return out(describeDeploy());
   }
-  notSim(`kubectl describe ${tg.raw}`);
+  if (tg.type === 'replicasets') {
+    const list = resolve(o.allNs || o.ns === 'default' ? S.rs.map(x => ({ ...x, name: 'interceptor-' + x.hash })) : [], 'replicasets');
+    if (!list.length) { if (!tg.names.length) noRes(o); return; }
+    return out(list.map(describeReplicaSet).join('\n\n\n'));
+  }
+  if (tg.type === 'daemonsets') {
+    const list = resolve(o.allNs || o.ns === 'kube-system' ? [{ name: 'kube-proxy' }, { name: 'relay-agent' }] : [], 'daemonsets');
+    if (!list.length) { if (!tg.names.length) noRes(o); return; }
+    return out(list.map(describeDaemonSet).join('\n\n\n'));
+  }
+  notSim(`kubectl describe ${tg.raw}`, DESCRIBE_HINTS[tg.type]);
 }

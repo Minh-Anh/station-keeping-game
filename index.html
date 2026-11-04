@@ -19,7 +19,7 @@
 
   <section class="term" aria-label="Terminal">
     <div class="out" id="out" role="log" aria-live="polite"></div>
-    <div class="toolbar"><span>Tab for completions</span><span aria-hidden="true">|</span><span>↑ to recall history</span></div>
+    <div class="toolbar"><span>Tab for completions</span><span aria-hidden="true">|</span><span>↑ to recall history</span><span aria-hidden="true">|</span><span>Filter output with | grep</span></div>
     <div class="completions" id="completions" role="status" aria-label="Completions"></div>
     <div class="inrow">
       <label class="p" for="cmd">operator@sector-7 $</label>
@@ -32,6 +32,12 @@
     <span class="chip" id="status">Interceptors running: <b>3/5</b></span>
     <span class="foot" id="count">0 commands</span>
     <span class="spacer"></span>
+    <label class="picker">Puzzle
+      <select id="puzzle">
+        <option value="1">1. No Room on Deck</option>
+        <option value="2">2. Information Overload</option>
+      </select>
+    </label>
     <button id="hintbtn" type="button">Hint (0/3)</button>
     <button id="resetbtn" type="button">Restart puzzle</button>
   </div>
