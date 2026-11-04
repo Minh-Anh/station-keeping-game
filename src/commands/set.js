@@ -4,7 +4,7 @@
 import { S, USER, rollout } from '../cluster.js';
 import { fmtCpu, fmtMem, parseCpu, parseMem, QTY_ERR } from '../format.js';
 import { out, err, note, notSim } from '../terminal.js';
-import { badFlags, normType, notFound } from '../args.js';
+import { badFlags, normType, notFound, unknownType } from '../args.js';
 
 const SET_HELP = 'Configure application resources.\n\n These commands help you make changes to existing application resources.\n\nAvailable Commands:\n  resources       Update resource requests/limits on objects with pod templates\n\nUsage:\n  kubectl set SUBCOMMAND [options]';
 
@@ -57,7 +57,7 @@ function parseRes(s) {
 export function kSet(o) {
   const sub = o.pos[1];
   if (!sub) return out(SET_HELP);
-  if (sub !== 'resources') return notSim('kubectl set ' + sub);
+  if (sub !== 'resources') return notSim('kubectl set ' + sub, 'kubectl set resources is the set command you can use here.');
   if (o.help) return out(SET_RES_HELP);
   if (badFlags(o, ['requests', 'limits'])) return;
 
@@ -67,7 +67,7 @@ export function kSet(o) {
   let kind, name;
   if (args[0].includes('/')) [kind, name] = args[0].split('/'); else [kind, name] = args;
   const type = normType(kind);
-  if (!type) return err(`error: the server doesn't have a resource type "${kind}"`);
+  if (!type) return unknownType(kind, o);
   if (!name) return err(MUST);
 
   const reqS = o.flags.requests, limS = o.flags.limits;
@@ -79,6 +79,7 @@ export function kSet(o) {
     return err(`Error from server (Forbidden): daemonsets.apps "${name}" is forbidden: User "${USER}" cannot patch resource "daemonsets" in API group "apps" in the namespace "kube-system"`);
   }
   if (type === 'pods') return note("set resources changes pod templates (deployments, daemonsets, replicasets…). A running pod's requests can't be changed this way. Change the template that creates the pods.");
+  if (type === 'replicasets') return note("A Deployment owns its ReplicaSets and would undo a change made here. Change the deployment's template instead.");
   if (type !== 'deployments') return notSim(`kubectl set resources ${kind}`);
   if (o.ns !== 'default' || name !== 'interceptor') return notFound('deployments', name);
   if (o.containers && !['*', 'interceptor'].includes(o.containers)) return err(`error: unable to find container named "${o.containers}"`);

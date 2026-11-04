@@ -1,9 +1,9 @@
 // kubectl get
 
-import { S, now, IMAGE, NAMESPACES, labels, matchSel, intPods, runningCount } from '../cluster.js';
+import { S, now, IMAGE, NAMESPACES, labels, matchSel, intPods, runningCount, podReady, podStatus } from '../cluster.js';
 import { age, table } from '../format.js';
 import { out, err, notSim } from '../terminal.js';
-import { badFlags, target, noRes, notFound } from '../args.js';
+import { badFlags, target, noRes, notFound, unknownType } from '../args.js';
 
 const HELP = 'Display one or many resources.\n\nUsage:\n  kubectl get [(-o|--output=)wide|name] (TYPE[.VERSION][.GROUP] [NAME | -l label] | TYPE[.VERSION][.GROUP]/NAME ...) [flags] [options]';
 const NO_TYPE = 'You must specify the type of resource to get. Use "kubectl api-resources" for a complete list of supported resources.\n\nerror: Required resource not specified.\nUse "kubectl explain <resource>" for a detailed description of that resource (e.g. kubectl explain pods).\nSee \'kubectl get -h\' for help and examples';
@@ -13,8 +13,8 @@ export function kGet(o) {
   if (badFlags(o)) return;
   const tg = target(o);
   if (!tg) return err(NO_TYPE);
-  if (!tg.type) return err(`error: the server doesn't have a resource type "${tg.raw}"`);
-  if (o.out && !['wide', 'name'].includes(o.out)) return notSim(`-o ${o.out}`);
+  if (!tg.type) return unknownType(tg.raw, o);
+  if (o.out && !['wide', 'name'].includes(o.out)) return notSim(`-o ${o.out.split('=')[0]}`, 'kubectl describe shows the same details, and -o wide adds columns to this list.');
 
   const wide = o.out === 'wide', asName = o.out === 'name';
   const nsCol = o.allNs ? ['NAMESPACE'] : [];
@@ -41,7 +41,8 @@ export function kGet(o) {
       if (wide) head.push('IP', 'NODE', 'NOMINATED NODE', 'READINESS GATES');
       if (o.labels) head.push('LABELS');
       const rows = list.map(p => {
-        const row = [...(o.allNs ? [p.ns] : []), p.name, p.node ? '1/1' : '0/1', p.node ? 'Running' : 'Pending', '0', age(now() - p.created)];
+        const restarts = p.restarts ? `${p.restarts} (${age(now() - p.prev.kill)} ago)` : '0';
+        const row = [...(o.allNs ? [p.ns] : []), p.name, p.node && podReady(p) ? '1/1' : '0/1', p.node ? podStatus(p) : 'Pending', restarts, age(now() - p.created)];
         if (wide) row.push(p.ip || '<none>', p.node || '<none>', '<none>', '<none>');
         if (o.labels) row.push(Object.entries(labels(p)).map(([k, v]) => `${k}=${v}`).join(','));
         return row;
@@ -87,7 +88,7 @@ export function kGet(o) {
       return out(table([head, ...list.map(x => {
         const pods = S.pods.filter(p => p.hash === x.hash);
         const desired = x.hash === S.dep.hash ? S.dep.replicas : 0;
-        return [...(o.allNs ? ['default'] : []), x.name, String(desired), String(pods.length), String(pods.filter(p => p.node).length), age(now() - x.created)];
+        return [...(o.allNs ? ['default'] : []), x.name, String(desired), String(pods.length), String(pods.filter(p => p.node && podReady(p)).length), age(now() - x.created)];
       })]));
     }
 

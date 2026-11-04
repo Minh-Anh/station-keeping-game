@@ -7,7 +7,7 @@ import { S, NAMESPACES } from './cluster.js';
 import { showCompletions } from './terminal.js';
 import { parse, normType } from './args.js';
 
-const VERBS = ['get', 'describe', 'top', 'set', 'delete'];
+const VERBS = ['get', 'describe', 'top', 'logs', 'set', 'delete'];
 const TYPE_NAMES = ['pods', 'nodes', 'deployments', 'replicasets', 'daemonsets', 'events', 'services', 'namespaces'];
 const SET_KINDS = ['deployment', 'daemonset', 'replicaset'];
 const SET_FLAGS = ['--limits=', '--requests=', '--containers=', '--help'];
@@ -17,6 +17,8 @@ const VALUE_NEXT = ['-n', '-o', '-l', '-c', '--namespace', '--output', '--select
 // in the tray but never inserted, and stay away from CPU requests (the fix).
 const EXAMPLE_FLAG = '--limits=memory=512Mi';
 const EXAMPLE_VALUE = { '--limits': 'memory=512Mi', '--requests': 'memory=256Mi' };
+const RAID_EXAMPLE_FLAG = '--limits=cpu=200m';
+const RAID_EXAMPLE_VALUE = { '--limits': 'cpu=200m', '--requests': 'cpu=100m' };
 
 // Names offered follow the same namespace scoping as the command itself.
 function namesFor(type, ns = 'default', allNs = false) {
@@ -56,8 +58,15 @@ const unusedSetFlags = done => SET_FLAGS.filter(f => !done.some(d => d.startsWit
 
 function candidates(parts) {
   const cur = parts[parts.length - 1];
-  if (parts.length === 1) return ['kubectl', 'clear', 'hint', 'brief', 'reset'];
+  if (parts.length === 1) return ['kubectl', 'clear', 'hint', 'brief', 'reset', ...(S.won && !S.raid ? ['next'] : [])];
   if (!['kubectl', 'k'].includes(parts[0])) return [];
+
+  // After a pipe: offer grep, then its flags.
+  const pipe = parts.lastIndexOf('|');
+  if (pipe >= 0) {
+    if (pipe === parts.length - 2) return ['grep'];
+    return parts[pipe + 1] === 'grep' && cur.startsWith('-') ? ['-i', '-v', '-c', '-E', '-n', '-w', '-A', '-B', '-C'] : [];
+  }
 
   const prev = parts[parts.length - 2];
   if (prev === '-n' || prev === '--namespace') return NAMESPACES;
@@ -74,9 +83,11 @@ function candidates(parts) {
     if (verb === 'set') return unusedSetFlags(done);
     if (verb === 'get') return ['-o', '-n', '-A', '-l', '--show-labels', '--all-namespaces', '--help'];
     if (verb === 'delete') return ['-n', '-l', '--all', '--help'];
+    if (verb === 'logs') return ['-p', '-c', '-n', '--previous', '--tail=', '--help'];
     return ['-n', '-A', '-l', '--help'];
   }
   if (!pos.length) return VERBS;
+  if (verb === 'logs') return pos.length === 1 ? names('pods') : [];
   if (verb === 'top') return pos.length === 1 ? ['node', 'pod'] : names(pos[1]);
   if (verb === 'set') {
     if (pos.length === 1) return ['resources'];
@@ -90,14 +101,16 @@ function candidates(parts) {
 // The example to show for this input, if it has reached the resource flags.
 function exampleFor(v) {
   const parts = splitParts(v);
-  if (!['kubectl', 'k'].includes(parts[0]) || parts.length < 2) return null;
+  if (!['kubectl', 'k'].includes(parts[0]) || parts.length < 2 || parts.includes('|')) return null;
   const { pos } = scan(parts);
   if (pos[0] !== 'set' || pos[1] !== 'resources' || !setHasTarget(pos)) return null;
   const cur = parts[parts.length - 1];
   const prev = parts[parts.length - 2];
-  if (cur === '' && EXAMPLE_VALUE[prev]) return EXAMPLE_VALUE[prev];
-  if (cur.endsWith('=') && EXAMPLE_VALUE[cur.slice(0, -1)]) return EXAMPLE_VALUE[cur.slice(0, -1)];
-  return cur === '' || (cur.startsWith('-') && !cur.includes('=')) ? EXAMPLE_FLAG : null;
+  // The memory examples would give away Information Overload's fix, so it gets CPU ones.
+  const values = S.raid ? RAID_EXAMPLE_VALUE : EXAMPLE_VALUE;
+  if (cur === '' && values[prev]) return values[prev];
+  if (cur.endsWith('=') && values[cur.slice(0, -1)]) return values[cur.slice(0, -1)];
+  return cur === '' || (cur.startsWith('-') && !cur.includes('=')) ? (S.raid ? RAID_EXAMPLE_FLAG : EXAMPLE_FLAG) : null;
 }
 
 // The current word and the options that match it.

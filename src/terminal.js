@@ -4,7 +4,22 @@
 export const outEl = document.getElementById('out');
 export const PROMPT = 'operator@sector-7 $ ';
 
+let captured = null;
+
+// Runs fn and returns its stdout as lines instead of printing it. Errors and game
+// notes still print, the way stderr bypasses a shell pipe.
+export function capture(fn) {
+  captured = [];
+  try {
+    fn();
+    return captured.flatMap(t => t.split('\n'));
+  } finally {
+    captured = null;
+  }
+}
+
 export function line(text, cls) {
+  if (captured && cls === 'o') { captured.push(text); return; }
   const d = document.createElement('div');
   d.className = 'ln ' + cls;
   d.textContent = text;
@@ -16,7 +31,7 @@ export function line(text, cls) {
 export const out = t => line(t, 'o');
 export const err = t => line(t, 'e');
 export const note = t => line(t, 'sim');
-export const notSim = what => note(`${what} isn't simulated in this prototype.`);
+export const notSim = (what, hint) => note(`${what} isn't simulated in this prototype.${hint ? ' ' + hint : ''}`);
 export const clear = () => { outEl.textContent = ''; };
 
 const trayEl = document.getElementById('completions');

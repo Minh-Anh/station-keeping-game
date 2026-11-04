@@ -1,7 +1,7 @@
 // kubectl top: actual usage from the metrics pipeline. This is the view that
 // misleads players: carriers look ~10% busy while 84% of CPU is reserved.
 
-import { S, r } from '../cluster.js';
+import { S, r, podReady } from '../cluster.js';
 import { table } from '../format.js';
 import { out, err } from '../terminal.js';
 import { badFlags, normType, noRes, notFound } from '../args.js';
@@ -29,7 +29,7 @@ export function kTop(o) {
     }
     // Node usage = OS/kubelet baseline + what each pod actually uses.
     return out(table([['NAME', 'CPU(cores)', 'CPU(%)', 'MEMORY(bytes)', 'MEMORY(%)'], ...list.map(n => {
-      const pods = S.pods.filter(p => p.node === n.name);
+      const pods = S.pods.filter(p => p.node === n.name && podReady(p));
       const c = n.base.cpu + pods.reduce((a, p) => a + p.use.cpu, 0) + jitter();
       const m = Math.round(n.base.mem + pods.reduce((a, p) => a + p.use.mem, 0));
       return [n.name, c + 'm', Math.floor((100 * c) / n.cpu) + '%', m + 'Mi', Math.floor((100 * m) / n.mem) + '%'];
@@ -45,12 +45,13 @@ export function kTop(o) {
         const p = list.find(x => x.name === n);
         if (!p) notFound('pods', n);
         else if (!p.node) err('error: metrics not available yet'); // Pending pods have no metrics
+        else if (!podReady(p)) err(`Error from server (NotFound): podmetrics.metrics.k8s.io "${p.ns}/${p.name}" not found`); // no running container to measure
         else res.push(p);
       }
       if (!res.length) return;
       list = res;
     }
-    list = list.filter(p => p.node).sort((a, b) => a.ns.localeCompare(b.ns) || a.name.localeCompare(b.name));
+    list = list.filter(p => p.node && podReady(p)).sort((a, b) => a.ns.localeCompare(b.ns) || a.name.localeCompare(b.name));
     if (!list.length) return noRes(o);
     return out(table([
       [...(o.allNs ? ['NAMESPACE'] : []), 'NAME', 'CPU(cores)', 'MEMORY(bytes)'],

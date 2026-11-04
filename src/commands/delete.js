@@ -4,7 +4,7 @@
 
 import { S, USER, reconcile, matchSel } from '../cluster.js';
 import { out, err, notSim } from '../terminal.js';
-import { badFlags, target, noRes, notFound } from '../args.js';
+import { badFlags, target, noRes, notFound, unknownType } from '../args.js';
 
 // e.g. res = "deployments.apps" -> resource "deployments" in API group "apps"
 function forbidden(verb, res, name, ns) {
@@ -18,7 +18,7 @@ export function kDelete(o) {
   if (badFlags(o, ['force', 'grace-period', 'now', 'wait'])) return;
   const tg = target(o);
   if (!tg) return err('error: You must provide one or more resources by argument or filename.');
-  if (!tg.type) return err(`error: the server doesn't have a resource type "${tg.raw}"`);
+  if (!tg.type) return unknownType(tg.raw, o);
   if (!tg.names.length && !o.all && !o.sel) return err('error: resource(s) were provided, but no name was specified');
 
   if (tg.type === 'pods') {
